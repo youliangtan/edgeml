@@ -1,6 +1,6 @@
 # edgeml
 
-It is common for edge device to be limited by GPU compute. This library enables distributed datastream from edge device to GPU compute for various ml applications. The lib mainly based on client-server architecutre, enable simple TCP communication between multiple clients to server.
+A simple framework for distributed machine learning library for edge computing. It is common for edge device to be limited by GPU compute. This library enables distributed datastream from edge device to GPU compute for various ml applications. The lib mainly based on client-server architecutre, enable simple TCP communication between multiple clients to server.
 
 ## Installation
 
@@ -24,22 +24,24 @@ python3 example.py --client
 
 ## Architecture
 
-There are three types of server-client main types of classes for user to use, according to their application. Functional programming is mainly used as the API design. User can define their own callback function to process the data.
+There are three types of server-client main types of classes for user to use, according to their application. Functional programming is mainly used as the API design. User can define their own callback function to process the data. There are mainly 3 modes: `env`, `inference`, `trainer`.
 
-1. **Actor (edge device) as server: `edgeml.ActorServer` and `edgeml.ActorClient`**
-   - `ActorServer` provides observation to client
-   - `ActorClient` can provide further action to server (Optional)
+1. **Action service (edge device) as server: `edgeml.ActionServer` and `edgeml.ActionClient`**
+   - `ActionServer` provides observation to client
+   - `ActionClient` can provide further action to server (Optional)
+
+For a Reinforcement learning setting, this action server can be considered as a `EnvServer`, which takes in action and return obs. The term of `ActionServer` is to make it more general for other applications other than RL.
 
 *Multi-clients can connect to a edge server. client can call `obs`, `act` impl, and server can call `publish_obs` method. The method is shown in the diagram below.*
 
 ```mermaid
 graph LR
-A[Clients] -- "obs()" --> B((Edge Server))
+A[Clients] -- "obs()" --> B((Action Server))
 A -- "act()" --> B
 B -- "publish_obs()" --> A
 ```
 
-2. **Inference compute as server: `edgeml.InferenceServer` and `edgeml.InferenceClient`**
+1. **Inference compute as server: `edgeml.InferenceServer` and `edgeml.InferenceClient`**
    - `InferenceClient` provides observation to server and gets prediction
 
 *Multi-client to call inference compute. client can call the `call` method*
@@ -70,12 +72,12 @@ A -- "send_request()" --> B
 
 1. **Edge Device as Server**
 
-An edge device (Agent) can send observations to a remote client. The client, in turn, can provide actions to the agent based on these observations. This uses the `edgeml.ActorServer` and `edgeml.ActorClient` classes.
+An edge device (Agent) can send observations to a remote client. The client, in turn, can provide actions to the agent based on these observations. This uses the `edgeml.ActionServer` and `edgeml.ActionClient` classes.
 
 **GPU Compute as client**
 ```py
 model = load_model()
-agent = edgeml.ActorClient('localhost', 6379, task_id='mnist', config=agent_config)
+agent = edgeml.ActionClient('localhost', 6379, task_id='mnist', config=agent_config)
 
 for _ in range(100):
     observation = agent.get_observation()
@@ -93,8 +95,8 @@ def observation_callback(keys):
     # TODO: return the desired observations here
     return {"cam1": "some_value"}
 
-config = edgeml.ActorConfig(port_number=6379, action_keys=['move'], observation_keys=['cam1'])
-agent_server = edgeml.ActorServer(config, observation_callback, action_callback)
+config = edgeml.ActionConfig(port_number=6379, action_keys=['move'], observation_keys=['cam1'])
+agent_server = edgeml.ActionServer(config, observation_callback, action_callback)
 agent_server.start()
 ```
 
@@ -158,7 +160,7 @@ trainer_server.start()
 - Run test cases to make sure everything is working as expected.
 
 ```bash
-python3 edgeml/tests/test_actor.py
+python3 edgeml/tests/test_action.py
 python3 edgeml/tests/test_inference.py
 python3 edgeml/tests/test_trainer.py
 
