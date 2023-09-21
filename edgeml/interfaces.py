@@ -281,11 +281,12 @@ class TrainerConfig(BaseModel):
 class TrainerCallback(Protocol):
     """
     Define the data type of the trainer callback function
+        :param table_name: Name of the table to store the data
         :param payload: Payload to send to the trainer, e.g. training data
         :return: Response to send to the client, can return updated weights.
     """
 
-    def __call__(self, payload: dict) -> dict:
+    def __call__(self, table_name, payload: dict) -> dict:
         ...
 
 
@@ -331,7 +332,7 @@ class TrainerServer:
                 if table_name not in self.data_store:
                     return {"success": False, "message": "Invalid table name"}
                 self.data_store[table_name].append(_payload)
-                return train_callback(_payload)
+                return train_callback(table_name, _payload)
             elif _type == "hash":
                 # print("config", config.json())
                 config_json = json.dumps(config.dict(), separators=(',', ':'))

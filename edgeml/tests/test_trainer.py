@@ -4,9 +4,9 @@ import time
 import logging
 from edgeml.interfaces import TrainerClient, TrainerServer, TrainerConfig, DataTable
 
-def dummy_training_callback(payload: dict) -> dict:
+def dummy_training_callback(table_name, payload: dict) -> dict:
     """Simulated callback for training data."""
-    print("Server received training data:", payload)
+    print("Server received training data:", payload, " for table:", table_name)
     # For the sake of this test, just echo back the data as "weights"
     return {"weights": payload['data']}
 

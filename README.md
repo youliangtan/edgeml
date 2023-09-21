@@ -24,7 +24,7 @@ python3 example.py --client
 
 ## Architecture
 
-There are three types of server-client main types of classes for user to use, according to their application. Functional programming is mainly used as the API design. User can define their own callback function to process the data. There are mainly 3 modes: `env`, `inference`, `trainer`.
+There are three types of server-client main types of classes for user to use, according to their application. Functional programming is mainly used as the API design. User can define their own callback function to process the data. There are mainly 3 modes: `action`, `inference`, `trainer`.
 
 1. **Action service (edge device) as server: `edgeml.ActionServer` and `edgeml.ActionClient`**
    - `ActionServer` provides observation to client
@@ -70,9 +70,9 @@ A -- "send_request()" --> B
 
 > For detailed example, please refer to the test scripts in `edgeml/tests/`.
 
-1. **Edge Device as Server**
+1. **A RL Env as Action Server**
 
-An edge device (Agent) can send observations to a remote client. The client, in turn, can provide actions to the agent based on these observations. This uses the `edgeml.ActionServer` and `edgeml.ActionClient` classes.
+The environment can send observations to a remote client. The client, in turn, can provide actions to the environment server. This uses the `edgeml.ActionServer` and `edgeml.ActionClient` classes.
 
 **GPU Compute as client**
 ```py
@@ -100,7 +100,7 @@ agent_server = edgeml.ActionServer(config, observation_callback, action_callback
 agent_server.start()
 ```
 
-3. **Agent as client and inference as server**
+1. **Agent as client and inference as server**
 
 This uses the `edgeml.InferenceServer` and `edgeml.InferenceClient` classes. This is useful for low power edge devices that cannot run inference locally.
 
@@ -131,28 +131,38 @@ A remote trainer receives observations from an edge device (Agent) and sends upd
 ```py
 env = gym.make('CartPole-v0')
 observation = env.reset()
-config = edgeml.TrainerConfig(port_number=6379, broadcast_port=6380)
+
+def recv_weights(new_weights):
+    agent.update_weights(new_weights)
+
+config = TrainerConfig(data_table=[DataTable(name="agent1", size=2)])
 trainer = edgeml.TrainerClient('localhost', config)
+trainer.register_callback(recv_weights)
 agent = make_agent()  # Arbitrary agent
 
 while True:
     action = agent.get_action(observation)
     observation, reward, done, info = env.step(action)
     # or we can use callback function to receive new weights
-    new_weights = trainer.train_step({"observation": observation})
+    trainer.train_step("agent1", {"observation": observation})
     agent.update_weights(new_weights)
 ```
 
 **Trainer (Remote compute)**
 
 ```py
-def train_step(payload):
+def train_step(table_name, payload):
     # TODO: do some training based on observation
-    return new_weights
+    MagicLearner().insert(payload)
+    return {} # optional return new weights
 
-config = edgeml.TrainerConfig(port_number=6379, broadcast_port=6380)
+config = edgeml.TrainerConfig(data_table=[DataTable(name="agent1", size=2)])
 trainer_server = edgeml.TrainerServer(config, train_step)
-trainer_server.start()
+trainer_server.start(threaded=True)
+while True:
+    time.sleep(10) # every 10 seconds
+    new_weights = MagicLearner().train()
+    trainer_server.publish_weights(new_weights)
 ```
 
 ## Notes
