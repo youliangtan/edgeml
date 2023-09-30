@@ -53,14 +53,16 @@ C[Client 2] -- "call()" --> B
 ```
 
 3. **Trainer compute as server: `edgeml.TrainerServer` and `edgeml.TrainerClient`**
-   - `TrainerClient` provides observation to server and gets new weights
+   - `TrainerClient` provides consistent datastore update to server and gets new network
 
-*Multi-client to call trainer compute. client can call the `train_step` method. `publish_weights` method can also be used to publish weights to all clients. `get_data` method can be used to get cached data from clients.*
+This supports distributed datastore, and enable multiple clients to send data to server. The server can then publish the new network to all clients.
+
+*Multi-client to call trainer compute. client can call the `upate` method. `publish_network` method can also be used to publish network to all clients. `get_data` method can be used to get cached data from clients.*
 
 ```mermaid
 graph LR
-A[Clients] -- "train_step()" --> B((Trainer Server))
-B -- "publish_weights()" --> A
+A[Clients] -- "update()" --> B((Trainer Server))
+B -- "publish_network()" --> A
 A -- "send_request()" --> B
 ```
 
@@ -124,7 +126,8 @@ res = client.call("voice_reg", {"audio": "serialized_audio"})
 
 2. **Remote Training Example for an RL Application**
 
-A remote trainer receives observations from an edge device (Agent) and sends updated weights back. The Agent then updates its model with these new weights. This uses the `edgeml.TrainerServer` and `edgeml.TrainerClient` classes.
+A remote trainer can access the datastore updated by edge devices (Agents) and sends updated network back. The Agent then updates its model with these new network. This uses the `edgeml.TrainerServer` and `edgeml.TrainerClient` classes.
+
 
 **Client**
 
@@ -135,34 +138,39 @@ observation = env.reset()
 def recv_weights(new_weights):
     agent.update_weights(new_weights)
 
-config = TrainerConfig(data_table=[DataTable(name="agent1", size=2)])
-trainer = edgeml.TrainerClient('localhost', config)
-trainer.register_callback(recv_weights)
+ds = edgeml.data.QueueDataStore(size=2)
+trainer_client = edgeml.TrainerClient(
+    "agent1', 'localhost', TrainerConfig(), data_store=ds)
+trainer_client.recv_network_callback(recv_weights)
 agent = make_agent()  # Arbitrary agent
 
 while True:
     action = agent.get_action(observation)
     observation, reward, done, info = env.step(action)
     # or we can use callback function to receive new weights
-    trainer.train_step("agent1", {"observation": observation})
+    ds.insert(observation)
+
+    trainer_client.update()
     agent.update_weights(new_weights)
 ```
 
 **Trainer (Remote compute)**
 
 ```py
-def train_step(table_name, payload):
-    # TODO: do some training based on observation
-    MagicLearner().insert(payload)
-    return {} # optional return new weights
+trainer_server = edgeml.TrainerServer(edgeml.TrainerConfig())
 
-config = edgeml.TrainerConfig(data_table=[DataTable(name="agent1", size=2)])
-trainer_server = edgeml.TrainerServer(config, train_step)
+# create datastore in server
+ds = edgeml.data.QueueDataStore(size=2)
+trainer_server.register_datastore("agent1", ds)
+
 trainer_server.start(threaded=True)
 while True:
     time.sleep(10) # every 10 seconds
-    new_weights = MagicLearner().train()
-    trainer_server.publish_weights(new_weights)
+
+    _data = ds.sample() # sample data from datastore
+    new_weights = MagicLearner().train(_data)
+
+    trainer_server.publish_network(new_weights)
 ```
 
 ## Notes
