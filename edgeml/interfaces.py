@@ -9,12 +9,10 @@ from edgeml.zmq_wrapper.req_rep import ReqRepServer, ReqRepClient
 from edgeml.zmq_wrapper.broadcast import BroadcastServer, BroadcastClient
 from edgeml.internal.utils import compute_hash
 
-import time
 import threading
 import logging
 from pydantic import BaseModel
 import json
-import pickle
 
 
 ##############################################################################
