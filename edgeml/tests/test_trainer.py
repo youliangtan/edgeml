@@ -9,7 +9,7 @@ import numpy as np
 from typing import Any
 
 CAPACITY = 3
-IS_REPLAY_BUFFER = False
+IS_REPLAY_BUFFER = False  # NOTE this is for testing replay buffer
 
 ################################################################################
 
@@ -29,9 +29,8 @@ def request_callback(type: str, payload: Any) -> dict:
 def helper_create_data_store() -> DataStoreBase:
     """Helper function to create a data store."""
     if IS_REPLAY_BUFFER:
-        # TODO: migrate the following code to here
-        from offroad_learning.data.data_store import DataStore, DataShape
-        ds = DataStore(
+        from edgeml.data.replay_buffer import ReplayBuffer, DataShape
+        ds = ReplayBuffer(
             capacity=CAPACITY,
             data_shapes=[DataShape(name="index", shape=(3,), dtype="int32")]
         )

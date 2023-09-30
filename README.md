@@ -8,6 +8,8 @@ A simple framework for distributed machine learning library for edge computing. 
 pip install -e .
 ```
 
+Install [jax](https://jax.readthedocs.io/en/latest/installation.html) if using ReplayBuffer datastore.
+
 ## Run example
 
 ```bash
@@ -139,8 +141,7 @@ def recv_weights(new_weights):
     agent.update_weights(new_weights)
 
 ds = edgeml.data.QueueDataStore(size=2)
-trainer_client = edgeml.TrainerClient(
-    "agent1', 'localhost', TrainerConfig(), data_store=ds)
+trainer_client = edgeml.TrainerClient("agent1", 'localhost', TrainerConfig(), data_store=ds)
 trainer_client.recv_network_callback(recv_weights)
 agent = make_agent()  # Arbitrary agent
 
@@ -184,6 +185,9 @@ python3 edgeml/tests/test_trainer.py
 
 # Run all tests
 python3 edgeml/tests/test_all.py
+
+
+
 ```
 
 - The current implementation mainly uses zeromq as communication protocol, it should be easy to extend it to support other protocols such as grpc. (TODO: impl abstract function when there is a need)
