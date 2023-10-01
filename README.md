@@ -1,6 +1,6 @@
 # edgeml
 
-A simple framework for distributed machine learning library for edge computing. It is common for edge device to be limited by GPU compute. This library enables distributed datastream from edge device to GPU compute for various ml applications. The lib mainly based on client-server architecutre, enable simple TCP communication between multiple clients to server.
+A simple framework for distributed machine learning library for edge computing. Given the compute limitations of many edge devices, especially in terms of GPU capabilities, EdgeML facilitates distributed data streams from these devices to GPU-enhanced computes. Utilizing a client-server architecture, the library establishes handles the transport layer of numerous clients and a server.
 
 ## Installation
 
@@ -8,7 +8,7 @@ A simple framework for distributed machine learning library for edge computing. 
 pip install -e .
 ```
 
-Install [jax](https://jax.readthedocs.io/en/latest/installation.html) if using ReplayBuffer datastore.
+For ReplayBuffer datastore functionality, install [jax](https://jax.readthedocs.io/en/latest/installation.html).
 
 ## Run example
 
@@ -34,7 +34,7 @@ python3 examples/simple_replay_buffer.py
 
 ## Architecture
 
-There are three types of server-client main types of classes for user to use, according to their application. Functional programming is mainly used as the API design. User can define their own callback function to process the data. There are mainly 3 modes: `action`, `inference`, `trainer`.
+There are three types of server-client main types of classes for user to use, according to their application. Functional programming is mainly used as the API design. User can define their own callback function to process the data. There are 3 primary modes: `action`, `inference`, `trainer`.
 
 1. **Action service (edge device) as server: `edgeml.ActionServer` and `edgeml.ActionClient`**
    - `ActionServer` provides observation to client
@@ -67,7 +67,7 @@ C[Client 2] -- "call()" --> B
 
 This supports distributed datastore, and enable multiple clients to send data to server. The server can then publish the new network to all clients.
 
-*Multi-client to call trainer compute. client can call the `upate` method. `publish_network` method can also be used to publish network to all clients. `get_data` method can be used to get cached data from clients.*
+*Clients can keep their own instance of their datastore, can call the `update()` method to provide the latest datastore update to the trainer server. Trainer can have its own instance of the datastore, retrieve the data and provide the trained network to client via `publish_network()` method*
 
 ```mermaid
 graph LR
@@ -84,7 +84,7 @@ G <--> B
 
 ## Example Usage
 
-> For detailed example, please refer to the test scripts in `edgeml/tests/`.
+> For more examples, please refer to the test scripts in `edgeml/tests/` and `examples`.
 
 1. **A RL Env as Action Server**
 
@@ -184,14 +184,14 @@ trainer_server.start(threaded=True)
 
 while True:
     time.sleep(10) # every 10 seconds
-
     _data = data_store.sample(...) # sample data from datastore
     new_weights = MagicLearner().train(_data)
-
     trainer_server.publish_network(new_weights)
 ```
 
-## Notes
+---
+
+## Additional Notes
 
 - Run test cases to make sure everything is working as expected.
 
