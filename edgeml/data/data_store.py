@@ -12,24 +12,30 @@ from abc import abstractmethod
 class DataStoreBase:
     @abstractmethod
     def latest_data_id() -> Any:
-        """Return the id """
+        """Return the id of the latest data"""
         pass
 
     @abstractmethod
     def get_latest_data(self, from_id: Any) -> Tuple[list, dict]:
-        """return the indices and data from id"""
+        """
+        provide the all data from the given id
+            :return indices of the updated data within the store
+                    and it's corresponding data
+        """
         pass
 
     @abstractmethod
     def update_data(self, indices: list, data: dict):
         """with the indices and data, update the latest data"""
         pass
-    
+
     @abstractmethod
     def __len__(self):
+        """Length of the valid data in the store"""
         pass
 
 ##############################################################################
+
 
 class QueuedDataStore(DataStoreBase):
     """A simple queue-based data store."""
@@ -58,12 +64,14 @@ class QueuedDataStore(DataStoreBase):
         return indices, output_data
 
     def update_data(self, indices: List[int], data: Dict):
-        for idx in indices: # assume indices are sorted
+        assert len(indices) == len(data["seq_id"]) == len(data["data"])
+        for i, idx in enumerate(indices):
+            _id, _data = data["seq_id"][i], data["data"][i]
             if idx < len(self.queue):
-                self.queue[idx] = (data["seq_id"], data["data"])
+                self.queue[idx] = (_id, _data)
             else:
-                self.queue.append((data["seq_id"], data["data"]))
-        # assume the last one is the latest
+                self.queue.append((_id, _data))
+        # the last data is always the latest
         if len(self.queue) > 0:
             self.latest_seq_id = self.queue[-1][0]
 

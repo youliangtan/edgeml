@@ -15,8 +15,6 @@ import threading
 import logging
 from pydantic import BaseModel
 import json
-import pickle
-from abc import abstractmethod
 
 
 ##############################################################################
@@ -67,7 +65,7 @@ class TrainerServer:
                  config: TrainerConfig,
                  data_callback: Optional[DataCallback] = None,
                  request_callback: Optional[RequestCallback] = None,
-                 log_level=logging.DEBUG):
+                 log_level=logging.INFO):
         """
         Args
             :param config: Config object
@@ -138,24 +136,6 @@ class TrainerServer:
         """Stop the server"""
         self.req_rep_server.stop()
 
-    @staticmethod
-    def make_from_file(file_name: str,
-                       data_callback,
-                       request_callback: Optional[RequestCallback] = None,
-                       log_level=logging.DEBUG) -> TrainerServer:
-        """
-        Load the and construct TrainerServer from a previously saved pkl file
-            :return: TrainerServer object, None if failed to load
-        """
-        try:
-            with open(file_name, "rb") as f:
-                file = pickle.load(f)
-            server = TrainerServer(
-                file["config"], data_callback, request_callback, log_level)
-            return server
-        except Exception as e:
-            logging.error(f"Failed to load file: {e}")
-        return None
 
 ##############################################################################
 
@@ -166,8 +146,7 @@ class TrainerClient:
                  server_ip: str,
                  config: TrainerConfig,
                  data_store: DataStoreBase,
-                 #  async_update_period = None,
-                 log_level=logging.DEBUG):
+                 log_level=logging.INFO):
         """
         Args:
             :param name: Name of the client, creates a unique datastore
@@ -183,17 +162,25 @@ class TrainerClient:
         self.request_types = set(config.request_types)  # faster lookup
         self.data_store = data_store
         self.last_sync_data_id = -1
+        self.update_thread = None
+        self.last_request_time = 0
+        logging.basicConfig(level=log_level)
 
         res = self.req_rep_client.send_msg({"type": "hash"})
         if res is None:
             raise Exception("Failed to connect to server")
+
+        # try check configuration compatibility
         config_json = json.dumps(config.dict(), separators=(',', ':'))
         if compute_hash(config_json) != compute_hash(res["payload"]):
             raise Exception(
                 f"Incompatible config with hash with server. "
                 "Please check the config of the server and client")
-        self.last_request_time = 0
-        logging.basicConfig(level=log_level)
+
+        # First update the server's datastore
+        res = self.update()
+        if res is None or not res["success"]:
+            logging.error("Failed to update server's data store, do check!")
         logging.debug(
             f"Initiated trainer client at {server_ip}:{config.port_number}")
 
@@ -207,6 +194,8 @@ class TrainerClient:
         res = self._update({"indices": indices, "data": data})
         if res and res["success"]:
             self.last_sync_data_id = latest_id
+        else:
+            logging.warning("Failed to update data")
         return res
 
     def _update(self, data: dict) -> Optional[dict]:
@@ -247,7 +236,26 @@ class TrainerClient:
             self.server_ip, self.config.broadcast_port)
         self.broadcast_client.async_start(callback)
 
+    def start_async_update(self, interval: int = 10):
+        """
+        Start a thread that server's datastore every `interval` seconds.
+        :param interval: Interval in seconds.
+        """
+        def _periodic_update():
+            while not self.stop_update_flag.is_set():
+                self.update()
+                time.sleep(interval)
+
+        self.stop_update_flag = threading.Event()
+        if self.update_thread is None or not self.update_thread.is_alive():
+            self.stop_update_flag.clear()
+            self.update_thread = threading.Thread(target=_periodic_update)
+            self.update_thread.start()
+
     def stop(self):
         """Stop the client"""
         self.broadcast_client.stop()
+        if self.update_thread and self.update_thread.is_alive():
+            self.stop_update_flag.set()
+            self.update_thread.join()
         logging.debug("Stopped trainer client")

@@ -137,22 +137,26 @@ A remote trainer can access the datastore updated by edge devices (Agents) and s
 env = gym.make('CartPole-v0')
 observation = env.reset()
 
-def recv_weights(new_weights):
+# create data store and register to trainer client
+data_store = edgeml.data.ReplayBuffer(capacity=2)
+trainer_client = edgeml.TrainerClient(
+    "agent1", 'localhost', TrainerConfig(), data_store)
+
+# register callback function to receive new weights
+agent = make_agent()  # Arbitrary RL agent
+def _recv_weights(new_weights):
     agent.update_weights(new_weights)
 
-ds = edgeml.data.QueueDataStore(size=2)
-trainer_client = edgeml.TrainerClient("agent1", 'localhost', TrainerConfig(), data_store=ds)
-trainer_client.recv_network_callback(recv_weights)
-agent = make_agent()  # Arbitrary agent
+trainer_client.recv_network_callback(_recv_weights)
 
+# automatically update datastore every 10 seconds
+trainer.client.start_async_update(interval=10)
+
+# Run training steps
 while True:
     action = agent.get_action(observation)
     observation, reward, done, info = env.step(action)
-    # or we can use callback function to receive new weights
-    ds.insert(observation)
-
-    trainer_client.update()
-    agent.update_weights(new_weights)
+    data_store.insert(observation)
 ```
 
 **Trainer (Remote compute)**
@@ -161,14 +165,15 @@ while True:
 trainer_server = edgeml.TrainerServer(edgeml.TrainerConfig())
 
 # create datastore in server
-ds = edgeml.data.QueueDataStore(size=2)
-trainer_server.register_datastore("agent1", ds)
+data_store = edgeml.data.ReplayBuffer(capacity=2)
+trainer_server.register_data_store("agent1", data_store)
 
 trainer_server.start(threaded=True)
+
 while True:
     time.sleep(10) # every 10 seconds
 
-    _data = ds.sample() # sample data from datastore
+    _data = data_store.sample(...) # sample data from datastore
     new_weights = MagicLearner().train(_data)
 
     trainer_server.publish_network(new_weights)
@@ -186,8 +191,8 @@ python3 edgeml/tests/test_trainer.py
 # Run all tests
 python3 edgeml/tests/test_all.py
 
-
-
+# Run specific test
+pytest-3 edgeml/tests/test_replay_buffer.py
 ```
 
 - The current implementation mainly uses zeromq as communication protocol, it should be easy to extend it to support other protocols such as grpc. (TODO: impl abstract function when there is a need)
