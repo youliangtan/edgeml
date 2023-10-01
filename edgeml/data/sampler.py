@@ -60,11 +60,15 @@ class Sampler:
         ]
         return data, (idx >= mask_ep_begin) & (idx < mask_ep_end)
 
+##############################################################################
+
 
 class LatestSampler(Sampler):
     def sample(self, sampled_idx, ep_begin, ep_end, key, dataset, source_name):
         return self._access(sampled_idx, ep_begin, ep_end, dataset, source_name)
 
+
+##############################################################################
 
 class SequenceSampler(Sampler):
     def __init__(self, squeeze=False, begin=0, end=1, source=None,
@@ -93,6 +97,8 @@ class SequenceSampler(Sampler):
 
         return self._access(indices, ep_begin, ep_end, dataset, source_name)
 
+
+##############################################################################
 
 class FutureSampler(Sampler):
 

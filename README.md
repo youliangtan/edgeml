@@ -12,14 +12,22 @@ Install [jax](https://jax.readthedocs.io/en/latest/installation.html) if using R
 
 ## Run example
 
+1. Video streamer example
+
 ```bash
-python3 example.py --server
+python3 examples/action_streamer.py --server
 ```
 
 On a different terminal, you can also run it on a different machine and provide custom ip address and port number. e.g. `--ip 100.10.23.23`
 
 ```bash
-python3 example.py --client
+python3 examples/action_streamer.py --client
+```
+
+2. Replay buffer example
+
+```bash
+python3 examples/simple_replay_buffer.py
 ```
 
 ---

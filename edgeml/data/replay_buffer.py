@@ -3,7 +3,6 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-import time
 from dataclasses import dataclass, asdict
 
 from typing import Dict, Optional, Tuple, List

@@ -84,6 +84,7 @@ def test_data_store_basic_insert_retrieve(data_store: ReplayBuffer):
     samples, samples_valid = data_store.sample(
         "default", 64, force_indices=jnp.arange(45)
     )
+    assert samples["data"].shape[0] == 45
 
 
 def test_data_store_insert_wrap(data_store: ReplayBuffer):
@@ -132,6 +133,7 @@ def test_data_store_insert_sequence(data_store: ReplayBuffer):
     last_trajectory_end = (data["trajectory_id"] == 2)[:, None] & (
         (data["index"][:, None] + jnp.arange(0, 4)) >= 75
     )
+    assert not jnp.any(valid["index_future"] & last_trajectory_end)
 
 
 def test_sample_trajectory_short_valid(data_store: ReplayBuffer):
