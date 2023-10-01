@@ -1,25 +1,18 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import jax.numpy as jnp
-import jax
-import chex
+
+# check if jax is installed
+try:
+    import jax
+    import jax.numpy as np
+    import chex
+except ImportError:
+    print("JAX is not installed, revert back to numpy")
+
 
 from typing import Dict, Tuple, Optional
 from enum import IntEnum
-
-
-def expand_to_shape(x: jax.Array, shape: Tuple[int, ...]) -> jax.Array:
-    """
-    Expand an array with correct prefix dimensions to a given shape.
-    """
-    assert x.ndim <= len(shape)
-    assert shape[: x.ndim] == x.shape, f"Bad shape {shape} for {x}"
-
-    while x.ndim < len(shape):
-        x = x[..., None].repeat(shape[x.ndim], axis=-1)
-
-    return x
 
 
 ##############################################################################
@@ -27,16 +20,16 @@ def expand_to_shape(x: jax.Array, shape: Tuple[int, ...]) -> jax.Array:
 
 class Sampler:
     """Abstract base class for samplers."""
-    source = None # default source name
+    source = None  # default source name
 
     def sample(self,
-               sampled_idx: jax.Array,
-               ep_begin: jax.Array,
-               ep_end: jax.Array,
-               key: jax.Array,
-               dataset: Dict[str, jax.Array],
+               sampled_idx: np.ndarray,
+               ep_begin: np.ndarray,
+               ep_end: np.ndarray,
+               key: np.ndarray,
+               dataset: Dict[str, np.ndarray],
                source_name: str
-        ) -> Tuple[jax.Array, jax.Array]:
+               ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Sample from the data according to the config.
 
@@ -48,7 +41,7 @@ class Sampler:
         """
         raise NotImplementedError
 
-    def _access(self, idx: jax.Array, ep_begin, ep_end, dataset, source_name):
+    def _access(self, idx: np.ndarray, ep_begin, ep_end, dataset, source_name):
         # check if source is defined, and if the source name is in dataset
         # else use the default source name which is ownself
         # TODO: better and clearner implementation for indexing
@@ -63,7 +56,7 @@ class Sampler:
         mask_ep_end = expand_to_shape(ep_end, idx.shape)
 
         data = dataset[source_name][
-            jnp.clip(idx, mask_ep_begin, mask_ep_end) % dataset_size
+            np.clip(idx, mask_ep_begin, mask_ep_end) % dataset_size
         ]
         return data, (idx >= mask_ep_begin) & (idx < mask_ep_end)
 
@@ -87,7 +80,7 @@ class SequenceSampler(Sampler):
         assert sequence_len > 0, f"History length must be positive, got {sequence_len}"
         with jax.default_device(self.device):
             indices = (
-                jnp.arange(self.seq_begin, self.seq_end)[None, :] + sampled_idx[:, None]
+                np.arange(self.seq_begin, self.seq_end)[None, :] + sampled_idx[:, None]
             )
         batch_size = sampled_idx.shape[0]
         chex.assert_shape(indices, (batch_size, sequence_len))
@@ -96,7 +89,7 @@ class SequenceSampler(Sampler):
             assert (
                 sequence_len == 1
             ), f"Can only squeeze sequence if length is 1, but got {sequence_len}"
-            indices = jnp.squeeze(indices, axis=-1)
+            indices = np.squeeze(indices, axis=-1)
 
         return self._access(indices, ep_begin, ep_end, dataset, source_name)
 
@@ -124,7 +117,7 @@ class FutureSampler(Sampler):
             if max_future_length is None:
                 max_future = ep_end
             else:
-                max_future = jnp.minimum(ep_end, sampled_idx + max_future_length)
+                max_future = np.minimum(ep_end, sampled_idx + max_future_length)
 
             future_indices = jax.random.randint(
                 key, shape=sampled_idx.shape, minval=sampled_idx, maxval=max_future)
@@ -132,7 +125,7 @@ class FutureSampler(Sampler):
         elif self.distribution == self.Distribution.EXPONENTIAL:
             offset = jax.random.exponential(key, shape=sampled_idx.shape) * self.lambda_
             future_indices = offset.astype(int) + sampled_idx
-            future_indices = jnp.minimum(future_indices, ep_end - 1)
+            future_indices = np.minimum(future_indices, ep_end - 1)
         else:
             raise ValueError(f"Unknown distribution")
 
@@ -140,6 +133,20 @@ class FutureSampler(Sampler):
 
 
 ##############################################################################
+
+
+def expand_to_shape(x: np.ndarray, shape: Tuple[int, ...]) -> np.ndarray:
+    """
+    Expand an array with correct prefix dimensions to a given shape.
+    """
+    assert x.ndim <= len(shape)
+    assert shape[: x.ndim] == x.shape, f"Bad shape {shape} for {x}"
+
+    while x.ndim < len(shape):
+        x = x[..., None].repeat(shape[x.ndim], axis=-1)
+
+    return x
+
 
 def make_jit_sample(sample_config: dict, device: jax.Device, sample_range: Tuple[int, int]):
     """
@@ -166,12 +173,12 @@ def make_jit_sample(sample_config: dict, device: jax.Device, sample_range: Tuple
                 shape=(batch_size,),
                 minval=sample_begin_idx,
                 maxval=sample_end_idx,
-                dtype=jnp.int32,
+                dtype=np.int32,
             )
 
-        ep_begins = jnp.maximum(metadata["ep_begin"][sampled_idcs], sample_begin_idx)
-        ep_ends = jnp.minimum(metadata["ep_end"][sampled_idcs], sample_end_idx)
-        sampled_idcs = jnp.clip(
+        ep_begins = np.maximum(metadata["ep_begin"][sampled_idcs], sample_begin_idx)
+        ep_ends = np.minimum(metadata["ep_end"][sampled_idcs], sample_end_idx)
+        sampled_idcs = np.clip(
             sampled_idcs, ep_begins - sample_range[0], ep_ends - sample_range[1]
         )
 

@@ -27,8 +27,8 @@ class TrainerConfig(BaseModel):
           client will raise Error if configs are different, thus can use
           `version` to check for compatibility
     """
-    port_number: int
-    broadcast_port: int
+    port_number: int = 5555
+    broadcast_port: int = 5556
     request_types: List[str] = []
     rate_limit: Optional[int] = None
     version: str = "0.0.1"

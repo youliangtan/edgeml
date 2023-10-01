@@ -63,9 +63,13 @@ This supports distributed datastore, and enable multiple clients to send data to
 
 ```mermaid
 graph LR
-A[Clients] -- "update()" --> B((Trainer Server))
+A[ClientA] -- "update()" --> B((Trainer Server))
 B -- "publish_network()" --> A
 A -- "send_request()" --> B
+C[DatastoreA] <--> A
+B <--> E["Datastore(s)"]
+F[DatastoreB] <--> G[ClientB]
+G <--> B
 ```
 
 ---

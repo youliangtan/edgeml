@@ -135,7 +135,7 @@ def test_data_store_insert_sequence(data_store: ReplayBuffer):
 
 
 def test_sample_trajectory_short_valid(data_store: ReplayBuffer):
-    data_store._min_trajectory_length = 3
+    data_store._trajectory.min_length = 3
 
     data_store.register_sample_config(
         "need_padding",
@@ -162,7 +162,7 @@ def test_sample_trajectory_short_valid(data_store: ReplayBuffer):
 
 
 def test_sample_trajectory_too_short(data_store: ReplayBuffer):
-    data_store._min_trajectory_length = 3
+    data_store._trajectory.min_length = 3
 
     data_store.register_sample_config(
         "need_padding",
@@ -206,7 +206,7 @@ def test_sample_trajectory_too_short(data_store: ReplayBuffer):
 
 
 def test_trajectory_becomes_too_short_from_overwrite(data_store: ReplayBuffer):
-    data_store._min_trajectory_length = 3
+    data_store._trajectory.min_length = 3
 
     data_store.register_sample_config(
         "need_padding",

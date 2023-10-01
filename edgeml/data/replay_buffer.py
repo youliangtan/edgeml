@@ -4,12 +4,16 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 from typing import Dict, Optional, Tuple, List
 
 from edgeml.data.data_store import DataStoreBase
 from edgeml.data.sampler import make_jit_insert, make_jit_sample, Sampler
+
+
+DATA_PREFIX = "data/"
+METADATA_PREFIX = "metadata/"
 
 
 @dataclass
@@ -63,19 +67,15 @@ class ReplayBuffer(DataStoreBase):
 
         self.capacity = capacity
         self.size = 0
-        self.latest_seq_id = 0
-        self._current_trajectory_begin = 0
-        self._current_trajectory_id = 0
+        self._latest_seq_id = 0
+        self._trajectory = Trajectory(begin_idx=0, id=0, min_length=min_trajectory_length)
         self._sample_begin_idx = 0
         self._sample_end_idx = 0
         self._insert_idx = 0
-
         self._device = device
 
         self._insert_impl = make_jit_insert(device)
         self._sample_impls = {}
-
-        self._min_trajectory_length = min_trajectory_length
 
     def register_sample_config(
         self,
@@ -87,16 +87,15 @@ class ReplayBuffer(DataStoreBase):
             sample_range[1] - sample_range[0] > 0
         ), f"Sample range {sample_range} must be positive"
         assert (
-            sample_range[1] - sample_range[0] <= self._min_trajectory_length
-        ), f"Sample range {sample_range} must be <= the minimum trajectory length {self._min_trajectory_length}"
+            sample_range[1] - sample_range[0] <= self._trajectory.min_length
+        ), f"Sample range {sample_range} must be <= the minimum trajectory length {self._trajectory.min_length}"
         self._sample_impls[name] = make_jit_sample(samplers, self._device, sample_range)
 
     def insert(self, data: Dict[str, jax.Array], end_of_trajectory: bool):
         """
         Insert a single data point into the data store.
         """
-        # last update time
-        self.latest_seq_id += 1  # overflow issue?
+        self._latest_seq_id += 1  # TODO overflow issue?
 
         # Grab the metadata of the sample we're overwriting
         real_insert_idx = self._insert_idx % self.capacity
@@ -108,10 +107,10 @@ class ReplayBuffer(DataStoreBase):
         # for k in self.dataset.keys():  # equivalent to _insert_impl above
         #     self.dataset[k] = self.dataset[k].at[real_insert_idx].set(data[k])
 
-        self.metadata["ep_begin"][real_insert_idx] = self._current_trajectory_begin
+        self.metadata["ep_begin"][real_insert_idx] = self._trajectory.begin_idx
         self.metadata["ep_end"][real_insert_idx] = -1
-        self.metadata["trajectory_id"][real_insert_idx] = self._current_trajectory_id
-        self.metadata["seq_id"][real_insert_idx] = self.latest_seq_id
+        self.metadata["trajectory_id"][real_insert_idx] = self._trajectory.id
+        self.metadata["seq_id"][real_insert_idx] = self._latest_seq_id
 
         self._insert_idx += 1
         self._sample_begin_idx = max(
@@ -122,15 +121,12 @@ class ReplayBuffer(DataStoreBase):
         if (
             overwritten_ep_end != -1
             and overwritten_ep_end - self._sample_begin_idx
-            < self._min_trajectory_length
+            < self._trajectory.min_length
         ):
             self._sample_begin_idx = overwritten_ep_end
 
         # We don't want to sample from this trajectory until there's enough data to be valid
-        if (
-            self._insert_idx - self._current_trajectory_begin
-            >= self._min_trajectory_length
-        ):
+        if self._trajectory.valid(self._insert_idx):
             self._sample_end_idx = self._insert_idx
 
         self.size = min(self.size + 1, self.capacity)
@@ -142,22 +138,19 @@ class ReplayBuffer(DataStoreBase):
         """
         End a trajectory without inserting any data.
         """
-        if (
-            self._insert_idx - self._current_trajectory_begin
-            < self._min_trajectory_length
-        ):
+        if not self._trajectory.valid(self._insert_idx):
             # If necessary, roll back the insert index to the beginning of the current trajectory if it's too short
             # We never set ep_end for this trajectory, so no need to rewrite it
-            self._insert_idx = self._current_trajectory_begin
+            self._insert_idx = self._trajectory.begin_idx
         else:
             # This trajectory is long enough. Mark it as valid.
             self.metadata["ep_end"][
-                self._current_trajectory_begin: self._insert_idx
+                self._trajectory.begin_idx: self._insert_idx
             ] = self._insert_idx
 
             # Update the metadata for the next trajectory
-            self._current_trajectory_begin = self._insert_idx
-            self._current_trajectory_id += 1
+            self._trajectory.begin_idx = self._insert_idx
+            self._trajectory.id += 1
 
     def sample(
         self,
@@ -193,19 +186,19 @@ class ReplayBuffer(DataStoreBase):
 
     def serialized(self):
         dataset_dict = {
-            f"data/{k}": np.asarray(v[: self.size]) for k, v in self.dataset.items()
+            f"{DATA_PREFIX}{k}": np.asarray(v[: self.size]) for k, v in self.dataset.items()
         }
         metadata_dict = {
-            f"metadata/{k}": np.asarray(v[: self.size])
+            f"{METADATA_PREFIX}{k}": np.asarray(v[: self.size])
             for k, v in self.metadata.items()
         }
         # TODO: _sample_begin_idx, _sample_end_idx are not serialized?
         return {
             **dataset_dict,
             **metadata_dict,
+            **self._trajectory.to_dict(),
             "size": self.size,
             "capacity": self.capacity,
-            "_current_trajectory_begin": self._current_trajectory_begin,
             "_insert_idx": self._insert_idx,
         }
 
@@ -232,42 +225,37 @@ class ReplayBuffer(DataStoreBase):
         """Load a stream of data from a file. Returns a ReplayBuffer object."""
         capacity = loaded_data["capacity"]
         size = loaded_data["size"]
-        current_trajectory_begin = loaded_data["_current_trajectory_begin"]
         insert_idx = loaded_data["_insert_idx"]
         data = {
             k.split("/")[1]: v
             for k, v in loaded_data.items()
-            if k.startswith("data/")
+            if k.startswith(DATA_PREFIX)
         }
         metadata = {
             k.split("/")[1]: v
             for k, v in loaded_data.items()
-            if k.startswith("metadata/")
+            if k.startswith(METADATA_PREFIX)
         }
 
         data_shapes = [
             DataShape(name=k, shape=v.shape[1:], dtype=str(v.dtype)) for k, v in data.items()
         ]
-        data_store = ReplayBuffer(capacity, data_shapes, device=device)
+        replay_buffer = ReplayBuffer(capacity, data_shapes, device=device)
+        replay_buffer._trajectory = Trajectory.from_dict(loaded_data)
+        replay_buffer._latest_seq_id = np.max(metadata["seq_id"])
+        replay_buffer.size = size
+        replay_buffer._insert_idx = insert_idx
 
-        # get largest seq_id in the metadata["seq_id"]
-        data_store.latest_seq_id = np.max(metadata["seq_id"])
-
-        data_store.dataset = jax.tree_map(
-            lambda dataset, data: dataset.at[:size].set(data), data_store.dataset, data
+        replay_buffer.dataset = jax.tree_map(
+            lambda dataset, data: dataset.at[:size].set(data), replay_buffer.dataset, data
         )
         for k, v in metadata.items():
-            data_store.metadata[k][:size] = v
-
-        data_store.size = size
-        data_store._current_trajectory_begin = current_trajectory_begin
-        data_store._insert_idx = insert_idx
-
-        return data_store
+            replay_buffer.metadata[k][:size] = v
+        return replay_buffer
 
     def latest_data_id(self) -> int:
-        """return in last seq_id"""
-        return self.latest_seq_id
+        """return the lastest data id, which is the seq id"""
+        return self._latest_seq_id
 
     def get_latest_data(self, from_id: int
                         ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
@@ -280,13 +268,14 @@ class ReplayBuffer(DataStoreBase):
 
         # Extract data for those indices
         dataset_dict = {
-            f"data/{k}": jnp.asarray(v[indices]) for k, v in self.dataset.items()
+            f"{DATA_PREFIX}{k}": jnp.asarray(v[indices]) for k, v in self.dataset.items()
         }
         metadata_dict = {
-            f"metadata/{k}": jnp.asarray(v[indices]) for k, v in self.metadata.items()
+            f"{METADATA_PREFIX}{k}": jnp.asarray(v[indices]) for k, v in self.metadata.items()
         }
+        # NOTE: this will resulted in the Trainer's datastore being readonly since
+        #       local stateful variables e.g. traj are not provided in this method
         data = {
-            "_insert_idx": self._insert_idx,
             **dataset_dict,
             **metadata_dict
         }
@@ -300,7 +289,7 @@ class ReplayBuffer(DataStoreBase):
         # TODO (YL): improve this loop operation
         # Update dataset with the provided data
         for k, v in self.dataset.items():
-            updated_values = data[f"data/{k}"]
+            updated_values = data[f"{DATA_PREFIX}{k}"]
             assert len(updated_values) == len(indices)
             # Use JAX operations to update values at the specified indices
             with jax.default_device(self._device):
@@ -308,13 +297,37 @@ class ReplayBuffer(DataStoreBase):
 
         # Update metadata with the provided metadata
         for k, v in self.metadata.items():
-            updated_values = data[f"metadata/{k}"]
+            updated_values = data[f"{METADATA_PREFIX}{k}"]
             assert len(updated_values) == len(indices)
             v[indices] = updated_values
 
         # get largest seq_id in the metadata["seq_id"]
-        self.latest_seq_id = np.max(self.metadata["seq_id"])
+        self._latest_seq_id = np.max(self.metadata["seq_id"])
 
     def __len__(self):
         """Get the number of valid data points in the data store."""
         return len(np.where(self.metadata["seq_id"] > 0)[0])
+
+################################################################################
+
+
+@dataclass
+class Trajectory:
+    """This is used internally for tracking the current trajectory."""
+    begin_idx: int
+    id: int
+    min_length: int
+
+    def valid(self, curent_idx: int) -> bool:
+        return curent_idx - self.begin_idx >= self.min_length
+
+    def to_dict(self) -> Dict[str, int]:
+        return {f"traj/{k}": v for k, v in asdict(self).items()}
+
+    @staticmethod
+    def from_dict(data: Dict[str, int]):
+        return Trajectory(
+            begin_idx=data["traj/begin_idx"],
+            id=data["traj/id"],
+            min_length=data["traj/min_length"]
+        )
