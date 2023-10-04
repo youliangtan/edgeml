@@ -51,6 +51,13 @@ class ReqRepServer:
                     self.socket.send(b"World")
             except zmq.Again as e:
                 continue
+            except zmq.ZMQError as e:
+                # Handle ZMQ errors gracefully
+                if self.is_kill:
+                    logging.debug("Stopping the ZMQ server...")
+                    break
+                else:
+                    raise e
 
     def stop(self):
         self.is_kill = True
