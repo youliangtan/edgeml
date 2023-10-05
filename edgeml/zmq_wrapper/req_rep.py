@@ -2,11 +2,11 @@
 
 import zmq
 import argparse
-from typing import Optional, Callable, Dict
+from typing import Optional, Dict
 from typing_extensions import Protocol
 import logging
 
-from edgeml.internal.utils import print_warning, make_compression_method
+from edgeml.internal.utils import make_compression_method
 
 ##############################################################################
 
@@ -122,8 +122,8 @@ class ReqRepClient:
             return self.decompress(message)
         except Exception as e:
             # accepts timeout exception
-            logging.error(f"Failed to send message: {e}")
-            print_warning("WARNING: No response from server. reset socket.")
+            logging.warning(f"Failed to send message: {e}")
+            logging.debug("WARNING: No response from server. reset socket.")
             self.reset_socket()
             return None
 
