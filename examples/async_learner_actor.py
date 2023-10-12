@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# NOTE: this requires jaxrl_m to be installed: 
+# NOTE: this requires jaxrl_m to be installed:
 #       https://github.com/rail-berkeley/jaxrl_minimal
 
 import time
@@ -22,8 +22,8 @@ from jaxrl_m.utils.timer_utils import Timer
 from edgeml.trainer import TrainerServer, TrainerClient, TrainerTunnel
 from edgeml.data.data_store import QueuedDataStore
 
-from jaxrl_common import ReplayBufferDataStore
-from jaxrl_common import make_agent, make_trainer_config, make_wandb_logger
+from jaxrl_m_common import ReplayBufferDataStore
+from jaxrl_m_common import make_agent, make_trainer_config, make_wandb_logger
 
 FLAGS = flags.FLAGS
 
@@ -85,6 +85,9 @@ def actor(agent: SACAgent, data_store, env, sampling_rng, tunnel=None):
 
     obs, _ = env.reset()
     done = False
+
+    # either use client.update() or client.start_async_update(
+    # client.start_async_update(interval=1)  # every 1 sec
 
     # training loop
     timer = Timer()
@@ -163,7 +166,7 @@ def learner(agent, replay_buffer, wandb_logger=None, tunnel=None):
         assert type == "send-stats", f"Invalid request type: {type}"
         if wandb_logger is not None:
             wandb_logger.log(payload, step=update_steps)
-        return {}
+        return {}  # not expecting a response
 
     # Create server
     if tunnel:
@@ -174,11 +177,14 @@ def learner(agent, replay_buffer, wandb_logger=None, tunnel=None):
         server.register_data_store("actor_env", replay_buffer)
         server.start(threaded=True)
 
-    # wait till the replay buffer is filled with enough data
+    # Loop to wait until replay_buffer is filled
+    pbar = tqdm.tqdm(total=FLAGS.training_starts, initial=len(replay_buffer),
+                     desc="Filling up replay buffer", position=0, leave=True)
     while len(replay_buffer) < FLAGS.training_starts:
-        print(f"waiting for replay buffer to fill up, current size: \
-            {len(replay_buffer)}/{FLAGS.training_starts}")
-        time.sleep(2)
+        pbar.update(len(replay_buffer) - pbar.n)  # Update progress bar
+        time.sleep(1)
+    pbar.update(len(replay_buffer) - pbar.n)  # Update progress bar
+    pbar.close()
 
     # send the initial network to the actor
     server.publish_network(agent.state.params)
@@ -186,7 +192,7 @@ def learner(agent, replay_buffer, wandb_logger=None, tunnel=None):
 
     # wait till the replay buffer is filled with enough data
     timer = Timer()
-    for step in tqdm.tqdm(range(FLAGS.max_steps), dynamic_ncols=True):
+    for step in tqdm.tqdm(range(FLAGS.max_steps), dynamic_ncols=True, desc="learner"):
         # Train the networks
         with timer.context("sample_replay_buffer"):
             batch = replay_buffer.sample(FLAGS.batch_size * FLAGS.utd_ratio)

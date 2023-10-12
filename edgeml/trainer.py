@@ -285,19 +285,17 @@ class TrainerTunnel:
         NOTE: this suppose to be an experimental feature
     """
     def __init__(self):
-        self.recv_network_fn = None
-        self.request_callback = None
+        self._recv_network_fn = None
+        self._req_callback_fn = None
 
-    # NOTE: Method for TrainerClient
-    def recv_network_callback(self, function):
+    def recv_network_callback(self, callback_fn: Callable):
         """Refer to TrainerClient.recv_network_callback()"""
-        self.recv_network_fn = function
+        self._recv_network_fn = callback_fn
 
-    # NOTE: Method for TrainerServer
-    def publish_network(self, params):
+    def publish_network(self, params: dict):
         """Refer to TrainerClient.recv_network_callback()"""
-        if self.recv_network_fn:
-            self.recv_network_fn(params)
+        if self._recv_network_fn:
+            self._recv_network_fn(params)
 
     def start(self, *args, **kwargs):
         pass # Do nothing
@@ -307,13 +305,21 @@ class TrainerTunnel:
 
     def update(self):
         """Refer to TrainerClient.update()"""
-        pass # Do nothing
+        pass # Do nothing since assume shared datastore
 
-    def register_request_callback(self, callback):
+    def register_request_callback(self, callback_fn: Callable):
         """A impl within TrainerServer.init()"""
-        self.request_callback = callback
+        self._req_callback_fn = callback_fn
 
-    def request(self, type, payload):
+    def request(self, type: str, payload: dict) -> Optional[dict]:
         """Refer to TrainerClient.request()"""
-        if self.request_callback:
-            self.request_callback(type, payload)
+        if self._req_callback_fn:
+            return self._req_callback_fn(type, payload)
+        return None
+    
+    def start_async_update(self, interval: int = 10):
+        """
+        Refer to TrainerClient.start_async_update()
+        no impl needed since assume shared datastore
+        """
+        pass

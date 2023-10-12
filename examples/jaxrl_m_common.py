@@ -86,8 +86,8 @@ def make_agent(sample_obs, sample_action):
 
 def make_trainer_config():
     return TrainerConfig(
-        port_number=5588,
-        broadcast_port=5589,
+        port_number=5488,
+        broadcast_port=5489,
         request_types=["send-stats"]
     )
 
