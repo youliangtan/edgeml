@@ -274,3 +274,46 @@ class TrainerClient:
             self.stop_update_flag.set()
             self.update_thread.join()
         logging.debug("Stopped trainer client")
+
+##############################################################################
+
+class TrainerTunnel:
+    """
+    This is a simple implementation to recreate the transport layer interface
+    of TrainerServer and TrainerClient. Helpful to test multithreaded operation
+    for TrainerServer and TrainerClient, while sharing the same datastore.
+        NOTE: this suppose to be an experimental feature
+    """
+    def __init__(self):
+        self.recv_network_fn = None
+        self.request_callback = None
+
+    # NOTE: Method for TrainerClient
+    def recv_network_callback(self, function):
+        """Refer to TrainerClient.recv_network_callback()"""
+        self.recv_network_fn = function
+
+    # NOTE: Method for TrainerServer
+    def publish_network(self, params):
+        """Refer to TrainerClient.recv_network_callback()"""
+        if self.recv_network_fn:
+            self.recv_network_fn(params)
+
+    def start(self, *args, **kwargs):
+        pass # Do nothing
+
+    def stop(self):
+        pass # Do nothing
+
+    def update(self):
+        """Refer to TrainerClient.update()"""
+        pass # Do nothing
+
+    def register_request_callback(self, callback):
+        """A impl within TrainerServer.init()"""
+        self.request_callback = callback
+
+    def request(self, type, payload):
+        """Refer to TrainerClient.request()"""
+        if self.request_callback:
+            self.request_callback(type, payload)
