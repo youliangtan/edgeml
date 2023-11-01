@@ -45,9 +45,9 @@ class BroadcastClient:
         self.socket.setsockopt(zmq.RCVTIMEO, 1500)
 
         # ZMQ will queue up msg with slow connections. This resulted in
-        # the new weights update being queued up, actor is not able to learn
+        # the new updated weights being queued up, actor is not able to learn
         # https://stackoverflow.com/questions/59542620/zmq-drop-old-messages
-        self.socket.setsockopt(zmq.CONFLATE, 1)
+        self.socket.setsockopt(zmq.CONFLATE, True)
         self.socket.setsockopt(zmq.RCVHWM, 3)  # queue size 3 for receive buffer
         self.is_kill = False
         self.thread = None
