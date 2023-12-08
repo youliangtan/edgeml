@@ -32,7 +32,7 @@ python3 examples/simple_replay_buffer.py
 ## then try out --server and --client mode on 2 separate terminals
 ```
 
-3. Async learner-actor with Gym RL env (requires `jaxrl_m` as dependency)
+3. Async learner-actor with Gym RL env (requires [jaxrl_m](https://github.com/rail-berkeley/jaxrl_minimal), [mujuco-py](https://github.com/openai/mujoco-py#install-mujoco) as dependency)
 
 ```bash
 # Indicate --learner or --actor mode, no tag means async multithreaded mode

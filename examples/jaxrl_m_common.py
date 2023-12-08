@@ -25,6 +25,8 @@ from jax import nn
 
 
 class ReplayBufferDataStore(ReplayBuffer, DataStoreBase):
+    # TODO: remove this class, and replace with
+    #       `data.tfds.ReplayBufferDataStore`
     def __init__(
         self,
         observation_space: gym.Space,
