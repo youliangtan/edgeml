@@ -1,14 +1,13 @@
 from __future__ import annotations
-from gym import spaces
-import os
-from typing import List
 
-import tensorflow as tf
-import numpy as np
+import os
 import gym
+import numpy as np
+import tensorflow as tf
+from threading import Lock
+
 from jaxrl_m.data.replay_buffer import ReplayBuffer
 from edgeml.data.data_store import DataStoreBase
-from threading import Lock
 
 
 ##############################################################################
@@ -96,8 +95,8 @@ def export_tfds(replay_buffer: ReplayBufferDataStore, output_path: str):
 
     The current data dict structure is:
         dataset_dict = dict(
-            observations=observation_data,
-            next_observations=next_observation_data,
+            observations=observation_data, # np.ndarray or dict
+            next_observations=next_observation_data, # np.ndarray or dict
             actions=np.empty((capacity, *action_space.shape), dtype=action_space.dtype),
             rewards=np.empty((capacity,), dtype=np.float32),
             masks=np.empty((capacity,), dtype=bool),
@@ -129,6 +128,8 @@ def export_tfds(replay_buffer: ReplayBufferDataStore, output_path: str):
         return obs_dict
 
     with tf.io.TFRecordWriter(output_path) as writer:
+        # NOTE: this impl is not efficient since it iterates over the entire
+        # replay buffer. TODO: requires a more efficient impl
         for i in range(capacity):
             # Handle ring buffer, i.e. the buffer is not full and
             # when the list is full and points to the beginning
@@ -158,10 +159,16 @@ def export_tfds(replay_buffer: ReplayBufferDataStore, output_path: str):
 
 def read_tfds(input_path: str,
               observation_space: gym.Space,
-              action_space: gym.Space,):
+              action_space: gym.Space,) -> tf.data.Dataset:
     dataset = tf.data.TFRecordDataset(input_path)
     """
     Utility function to get the dataset from the tfrecord file
+    args:
+        input_path: path to the tfrecord file
+        observation_space: observation space of the environment
+        action_space: action space of the environment
+    returns:
+        a tf.data.Dataset object
     """
     # print("size of dataset", len(list(dataset)))
     def _parse_function(proto):
@@ -187,7 +194,7 @@ def read_tfds(input_path: str,
         feature_description.update(obs_dict)
         parsed_features = tf.io.parse_single_example(proto, feature_description)
 
-        # Deserialize the tensors to original data types
+        # Deserialize the tensors to original data types and dict structure
         new_features = {}
 
         # Handle different observation space types

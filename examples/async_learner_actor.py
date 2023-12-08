@@ -22,8 +22,8 @@ from jaxrl_m.utils.timer_utils import Timer
 
 from edgeml.trainer import TrainerServer, TrainerClient, TrainerTunnel
 from edgeml.data.data_store import QueuedDataStore
+from edgeml.data.tfds import ReplayBufferDataStore
 
-from jaxrl_m_common import ReplayBufferDataStore
 from jaxrl_m_common import make_agent, make_trainer_config, make_wandb_logger
 
 FLAGS = flags.FLAGS
