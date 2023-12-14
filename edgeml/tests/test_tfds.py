@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
 
-from edgeml.data.tfds import read_tfds, export_tfds, ReplayBufferDataStore
+from edgeml.data.tfds import read_tfds, export_tfds, make_replay_buffer
+from edgeml.data.jaxrl_data_store import ReplayBufferDataStore
 import gym
 from gym import spaces
 import numpy as np
@@ -80,7 +82,7 @@ def run_logger(env, capacity=20):
         print(data)
 
     print("\nnow read the tfrecord file into replay buffer")
-    replay_buffer = ReplayBufferDataStore.make_from_tfds(
+    replay_buffer: ReplayBufferDataStore = make_replay_buffer(
         file_name,
         capacity=200,
         observation_space=env.observation_space,

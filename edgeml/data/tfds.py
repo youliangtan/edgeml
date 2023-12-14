@@ -7,75 +7,8 @@ import tensorflow as tf
 from threading import Lock
 
 from jaxrl_m.data.replay_buffer import ReplayBuffer
-from edgeml.data.data_store import DataStoreBase
+from edgeml.data.jaxrl_data_store import ReplayBufferDataStore
 
-
-##############################################################################
-
-
-class ReplayBufferDataStore(ReplayBuffer, DataStoreBase):
-    def __init__(
-        self,
-        observation_space: gym.Space,
-        action_space: gym.Space,
-        capacity: int,
-    ):
-        ReplayBuffer.__init__(self, observation_space, action_space, capacity)
-        DataStoreBase.__init__(self, capacity)
-        self._insert_seq_id = 0 # keeps increasing
-        self._lock = Lock()
-
-    @staticmethod
-    def make_from_tfds(input_path: str,
-                       capacity: int,
-                       observation_space: gym.Space,
-                       action_space: gym.Space,
-                       ) -> ReplayBufferDataStore:
-        """
-        make a replay buffer datastore object from a tfrecord file
-        """
-        # read the tfrecord file
-        dataset = tf.data.TFRecordDataset(input_path)
-        # parse the tfrecord file
-        replay_buffer = ReplayBufferDataStore(
-            observation_space=observation_space,
-            action_space=action_space,
-            capacity=capacity,
-        )
-
-        dataset = read_tfds(input_path, observation_space, action_space)
-        replay_buffer.batch_insert(list(dataset))
-        return replay_buffer
-
-    # ensure thread safety
-
-    def insert(self, *args, **kwargs):
-        with self._lock:
-            self._insert_seq_id += 1
-            super(ReplayBufferDataStore, self).insert(*args, **kwargs)
-
-    # ensure thread safety
-    def sample(self, *args, **kwargs):
-        with self._lock:
-            return super(ReplayBufferDataStore, self).sample(*args, **kwargs)
-
-    # NOTE: method for DataStoreBase
-    def latest_data_id(self):
-        return self._insert_seq_id
-
-    # NOTE: method for DataStoreBase
-    def get_latest_data(self, from_id: int):
-        raise NotImplementedError  # TODO
-
-    def end_trajectory(self):
-        raise NotImplementedError  # TODO
-        # TODO: compute RB indices for latest trajectory...
-        indices = ...
-        trajectory = jax.tree_map(lambda x: x[indices], self._buffer)
-        output_path = ...
-        self.save_tfds(trajectory, output_path)
-        # End the trajectory
-        ReplayBuffer.end_trajectory(self)
 
 ##############################################################################
 
@@ -222,3 +155,26 @@ def read_tfds(input_path: str,
 
     # Map the parsing function over the dataset
     return dataset.map(_parse_function)
+
+
+def make_replay_buffer(
+        input_path: str,
+        capacity: int,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+    ) -> ReplayBufferDataStore:
+    """
+    make a replay buffer datastore object from a tfrecord file
+    """
+    # read the tfrecord file
+    dataset = tf.data.TFRecordDataset(input_path)
+    # parse the tfrecord file
+    replay_buffer = ReplayBufferDataStore(
+        observation_space=observation_space,
+        action_space=action_space,
+        capacity=capacity,
+    )
+
+    dataset = read_tfds(input_path, observation_space, action_space)
+    replay_buffer.batch_insert(list(dataset))
+    return replay_buffer
