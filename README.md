@@ -108,9 +108,9 @@ model = load_model()
 agent = edgeml.ActionClient('localhost', 6379, task_id='mnist', config=agent_config)
 
 for _ in range(100):
-    observation = agent.get_observation()
+    observation = agent.obs()
     prediction = model.predict(observation)
-    agent.send_action(prediction)
+    agent.act("send", prediction)
 ```
 
 **Edge device as server**
@@ -213,6 +213,7 @@ while True:
 python3 edgeml/tests/test_action.py
 python3 edgeml/tests/test_inference.py
 python3 edgeml/tests/test_trainer.py
+python3 edgeml/tests/test_tfds.py
 
 # Run all tests
 python3 edgeml/tests/test_all.py
