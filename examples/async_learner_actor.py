@@ -22,8 +22,9 @@ from jaxrl_m.utils.timer_utils import Timer
 from edgeml.trainer import TrainerServer, TrainerClient, TrainerTunnel
 from edgeml.data.data_store import QueuedDataStore
 from edgeml.data.jaxrl_data_store import ReplayBufferDataStore
+from edgeml.data.jaxrl_data_store import make_default_trajectory_buffer
 
-from jaxrl_m_common import make_agent, make_trainer_config, make_wandb_logger, make_traj_buffer
+from jaxrl_m_common import make_agent, make_trainer_config, make_wandb_logger
 
 FLAGS = flags.FLAGS
 
@@ -53,7 +54,7 @@ flags.DEFINE_boolean("actor", False, "Is this a learner or a trainer.")
 flags.DEFINE_boolean("render", False, "Render the environment.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 
-# experimental with efficient replay buffer
+# experimental with trajectory buffer
 flags.DEFINE_boolean("use_traj_buffer", False, "Use efficient replay buffer.")
 
 # save replaybuffer data as rlds tfrecord
@@ -264,8 +265,8 @@ def create_datastore_and_wandb_logger(env):
         global_rlds_logger = logger
 
     if FLAGS.use_traj_buffer:
-        print_yellow(f"Using experimental Efficient replay buffer")
-        replay_buffer = make_traj_buffer(
+        print_yellow(f"Using experimental Trajectory buffer")
+        replay_buffer = make_default_trajectory_buffer(
             env.observation_space,
             env.action_space,
             capacity=FLAGS.replay_buffer_capacity,
