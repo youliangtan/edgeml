@@ -19,6 +19,7 @@ from jaxrl_m.agents.continuous.sac import SACAgent
 from edgeml.trainer import TrainerConfig
 
 from jax import nn
+from oxe_envlogger.rlds_logger import RLDSLogger
 
 
 ##############################################################################
@@ -82,6 +83,7 @@ def make_traj_buffer(
     action_space: gym.Space,
     capacity: int,
     device: Optional[jax.Device] = None,
+    rlds_logger: Optional[RLDSLogger] = None,
 ):
     replay_buffer = TrajectoryBufferDataStore(
         capacity=capacity,
@@ -95,6 +97,7 @@ def make_traj_buffer(
         ],
         min_trajectory_length=2,
         device=device,
+        rlds_logger=rlds_logger,
     )
 
     @jax.jit
