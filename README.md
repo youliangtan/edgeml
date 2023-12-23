@@ -47,7 +47,9 @@ python3 examples/async_learner_actor.py
  - `--ip`: ip address of the remote server
  - `--render`: render the gym env
  - `--use_traj_buffer`: use trajectory buffer instead of replay buffer
- - `--rlds_log_dir`: directory to save the tfrecords for RLDS
+ - `--rlds_log_dir`: directory to save the tfrecords for [RLDS](https://github.com/google-research/rlds)
+
+NOTE: rlds logger requires installation of [oxe_envlogger](https://github.com/rail-berkeley/oxe_envlogger)
 
 ---
 

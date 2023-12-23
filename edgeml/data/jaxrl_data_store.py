@@ -73,7 +73,7 @@ class TrajectoryBufferDataStore(TrajectoryBuffer, DataStoreBase):
 
                 self._logger(
                     action=data["actions"],
-                    obs=data["next_observations"],  # TODO: check if this is correct
+                    obs=data["next_observations"],  # TODO: not obs, but next_obs
                     reward=data["rewards"],
                     step_type=self.step_type,
                 )
