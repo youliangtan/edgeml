@@ -1,5 +1,7 @@
 # edgeml
 
+> ⚠️ Edgeml has been deprecated, please used the renamed lib: [agentlace](https://github.com/youliangtan/agentlace) ⚠️
+
 A simple framework for distributed machine learning applications with edge devices. Given the limitations of GPU compute for many edge devices, EdgeML facilitates a distributed data stream between edge devices and a remote GPU server. Built on a client-server architecture, EdgeML efficiently manages the transport layer for multiple clients and a central server. Moreover, Edgeml also enables async operations and inter-processes communications between different processes on a single machine.
 
 ## Installation
